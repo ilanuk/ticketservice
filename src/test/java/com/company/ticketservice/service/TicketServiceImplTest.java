@@ -1,13 +1,16 @@
 package com.company.ticketservice.service;
 
 import com.company.ticketservice.domain.SeatHold;
+import com.company.ticketservice.domain.Venue;
 import com.company.ticketservice.repository.SeatHoldRepository;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.springframework.test.context.junit4.SpringRunner;
@@ -28,9 +31,12 @@ public class TicketServiceImplTest {
     @Mock
     SeatHoldRepository seatHoldRepository;
 
+    Venue venue;
+
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        venue = new Venue(10,10);
         ticketServiceImpl = new TicketServiceImpl(seatHoldRepository);
     }
 
@@ -52,10 +58,10 @@ public class TicketServiceImplTest {
     @Test
     public void testFindAndHoldSeatsWithEnoughFreeSeats() {
         //given
-        int numSeats = 10;
+        int numSeats = 7;
         int freeSeatsAtStart = 10;
         String customerEmail = "abac@test.com";
-        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, Instant.now());
+        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, venue.getFreeSeats(numSeats).get(), Instant.now());
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart);
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart - numSeats);
         given(seatHoldRepository.addSeatHold(numSeats, customerEmail) ).will(new Answer<Object>() {
@@ -85,7 +91,7 @@ public class TicketServiceImplTest {
         int numSeats = 10;
         int freeSeatsAtStart = 9;
         String customerEmail = "abac@test.com";
-        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, Instant.now());
+        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, venue.getFreeSeats(numSeats).get(), Instant.now());
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart);
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart - numSeats);
         given(seatHoldRepository.addSeatHold(numSeats, customerEmail) ).will(new Answer<Object>() {
@@ -116,10 +122,11 @@ public class TicketServiceImplTest {
         int numSeats = 10;
         int freeSeatsAtStart = 10;
         String customerEmail = "abac@test.com";
-        byte[] array = new byte[7];
-        new Random().nextBytes(array);
-        String confirmationCode = new String(array, Charset.forName("UTF-8"));
-        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, Instant.now());
+        int length = 8;
+        boolean useLetters = true;
+        boolean useNumbers = false;
+        String confirmationCode = RandomStringUtils.random(length, useLetters, useNumbers);
+        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, venue.getFreeSeats(numSeats).get(), Instant.now());
         Optional<SeatHold> seatHoldOptional = Optional.of(seatHold);
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart);
         given(seatHoldRepository.getConfirmationCode()).willReturn(confirmationCode);
@@ -152,10 +159,11 @@ public class TicketServiceImplTest {
         int numSeats = 10;
         int freeSeatsAtStart = 10;
         String customerEmail = "abac@test.com";
-        byte[] array = new byte[7];
-        new Random().nextBytes(array);
-        String confirmationCode = new String(array, Charset.forName("UTF-8"));
-        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, Instant.now());
+        int length = 8;
+        boolean useLetters = true;
+        boolean useNumbers = false;
+        String confirmationCode = RandomStringUtils.random(length, useLetters, useNumbers);
+        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, venue.getFreeSeats(numSeats).get(), Instant.now());
         Optional<SeatHold> seatHoldOptional = Optional.empty();
         given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart);
         given(seatHoldRepository.getConfirmationCode()).willReturn(confirmationCode);
@@ -176,6 +184,45 @@ public class TicketServiceImplTest {
 
         //when
         String result = ticketServiceImpl.reserveSeats(seatHold.getId(), customerEmail);
+        //then
+        assertNull(result);
+        assertNotEquals(confirmationCode, result);
+    }
+
+    @Test
+    public void testReserveSeatsWithIncorrectHoldSeatEmail() {
+        //given
+        int numSeats = 10;
+        int freeSeatsAtStart = 10;
+        String customerEmail = "abac@test.com";
+        String customerEmailIncorrect = "babac@test.com";
+        int length = 8;
+        boolean useLetters = true;
+        boolean useNumbers = false;
+        String confirmationCode = RandomStringUtils.random(length, useLetters, useNumbers);
+        SeatHold seatHold = new SeatHold(1, numSeats, customerEmail, venue.getFreeSeats(numSeats).get(), Instant.now());
+        Optional<SeatHold> seatHoldOptional = Optional.of(seatHold);
+        given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart);
+        given(seatHoldRepository.getConfirmationCode()).willReturn(confirmationCode);
+        given(seatHoldRepository.getTotalSeatsFree()).willReturn(freeSeatsAtStart - numSeats);
+        given(seatHoldRepository.findSeatHold(seatHold.getId())).willReturn(seatHoldOptional);
+        given(seatHoldRepository.addSeatReserved(seatHold.getId(), customerEmailIncorrect) ).will(new Answer<Object>() {
+
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                Object[] args = invocation.getArguments();
+                String emailArg = (String)args[1];
+                if(seatHoldOptional.isPresent() && seatHoldOptional.get().getCustomerEmail().equalsIgnoreCase(emailArg)) {
+                    return confirmationCode;
+                }
+                else {
+                    return null;
+                }
+            }
+        });
+
+        //when
+        String result = ticketServiceImpl.reserveSeats(seatHold.getId(), customerEmailIncorrect);
         //then
         assertNull(result);
         assertNotEquals(confirmationCode, result);

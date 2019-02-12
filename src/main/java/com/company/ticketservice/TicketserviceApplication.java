@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@EnableScheduling
 public class TicketserviceApplication {
 	private static Logger LOG = LoggerFactory
 			.getLogger(TicketserviceApplication.class);
